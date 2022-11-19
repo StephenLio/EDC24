@@ -1,0 +1,11 @@
+{
+    "stm32-for-vscode.openOCDPath": false,
+    "files.associations": {
+        "main.h": "c",
+        "usart.h": "c",
+        "stdarg.h": "c",
+        "gpio.h": "c",
+        "dma.h": "c",
+        "tim.h": "c"
+    }
+}

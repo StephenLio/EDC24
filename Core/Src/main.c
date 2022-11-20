@@ -33,8 +33,8 @@
 
 typedef enum
 {
-  forward = 0,
-  back
+  back = 0,
+  forward
 }Direction_Typedef; //the direction of motor
 
 typedef struct
@@ -135,7 +135,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     MOTOR_Direction(1, forward);
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 250);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 300);
     // u5_printf("HELLO WORLD!\n");
   }
   /* USER CODE END 3 */
@@ -182,14 +182,14 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 /**
-  * @brief 电机正反�?
-  * @param motor_number:电机序号，范�? 1~4
-  * @param direction:正反转，forward为正转，back为反�?
+  * @brief 电机正反�??
+  * @param motor_number:电机序号，范�?? 1~4
+  * @param direction:正反转，forward为正转，back为反�??
   */
 void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction)
 {       
   motor[motor_number].direction = direction;
-  if (direction == forward)
+  if (direction == back)
   {
       switch (motor_number)
       {
@@ -214,7 +214,7 @@ void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction)
         break;
       }
   }
-  if (direction == back)
+  if (direction == forward)
   {
       switch (motor_number)
       {
@@ -247,22 +247,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM1)
   {
-    int16_t count1 = __HAL_TIM_GET_COUNTER(&htim2);//电机1的编码器计数
-    int16_t count2 = __HAL_TIM_GET_COUNTER(&htim3);//电机2的编码器计数
-    int16_t count3 = __HAL_TIM_GET_COUNTER(&htim4);//电机3的编码器计数
-    int16_t count4 = __HAL_TIM_GET_COUNTER(&htim5);//电机4的编码器计数
+    __IO uint32_t count1 = __HAL_TIM_GET_COUNTER(&htim2);//电机1的编码器计数
+    __IO uint32_t count2 = __HAL_TIM_GET_COUNTER(&htim3);//电机2的编码器计数
+    __IO uint32_t count3 = __HAL_TIM_GET_COUNTER(&htim4);//电机3的编码器计数
+    __IO uint32_t count4 = __HAL_TIM_GET_COUNTER(&htim5);//电机4的编码器计数
     
     __HAL_TIM_SetCounter(&htim2, 0);
     __HAL_TIM_SetCounter(&htim3, 0);
     __HAL_TIM_SetCounter(&htim4, 0);
     __HAL_TIM_SetCounter(&htim5, 0);
 
-    float speed1 = (float)count1 / 4 / 0.001 / 260 * Wheel_L;
-    float speed2 = (float)count2 / 4 / 0.001 / 260 * Wheel_L;
-    float speed3 = (float)count3 / 4 / 0.001 / 260 * Wheel_L;
-    float speed4 = (float)count4 / 4 / 0.001 / 260 * Wheel_L;
+    int speed1 = (float)count1 / 4 / 0.001 / 260 * Wheel_L;
+    int speed2 = (float)count2 / 4 / 0.001 / 260 * Wheel_L;
+    int speed3 = (float)count3 / 4 / 0.001 / 260 * Wheel_L;
+    int speed4 = (float)count4 / 4 / 0.001 / 260 * Wheel_L;
 
-    u5_printf("speed1: %ld\r\n", count1);
+    u5_printf("count1: %d ; speed1: %d\r\n", count1, speed1);
   }
 }
 

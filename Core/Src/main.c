@@ -247,10 +247,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM1)
   {
-    int32_t count1 = __HAL_TIM_GET_COUNTER(&htim2);//电机1的编码器计数
-    int32_t count2 = __HAL_TIM_GET_COUNTER(&htim3);//电机2的编码器计数
-    int32_t count3 = __HAL_TIM_GET_COUNTER(&htim4);//电机3的编码器计数
-    int32_t count4 = __HAL_TIM_GET_COUNTER(&htim5);//电机4的编码器计数
+    int16_t count1 = __HAL_TIM_GET_COUNTER(&htim2);//电机1的编码器计数
+    int16_t count2 = __HAL_TIM_GET_COUNTER(&htim3);//电机2的编码器计数
+    int16_t count3 = __HAL_TIM_GET_COUNTER(&htim4);//电机3的编码器计数
+    int16_t count4 = __HAL_TIM_GET_COUNTER(&htim5);//电机4的编码器计数
     
     __HAL_TIM_SetCounter(&htim2, 0);
     __HAL_TIM_SetCounter(&htim3, 0);

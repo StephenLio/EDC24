@@ -55,8 +55,8 @@ typedef struct
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define PID_MAX 1000//改成自己设定的PWM波的单波�?长输出时�?
-#define PID_MIN -1000//改成自己设定的PWM波的单波�?长输出时间的相反�?
+#define PID_MAX 1000//改成自己设定的PWM波的单波最长输出时间
+#define PID_MIN -1000//改成自己设定的PWM波的单波最长输出时间的相反数
 
 /* USER CODE END PD */
 
@@ -70,19 +70,11 @@ typedef struct
 /* USER CODE BEGIN PV */
 Motor_Typedef motor[5];
 
-PID_Typedef *pid_speed;
+PID_Typedef *pid_speed[5];
 PID_Typedef *pid_rotate;
 PID_Typedef *pid_ordinate;
+uint8_t RxBuffer[10];
 
-uint8_t set_speed;
-uint8_t set_angle;
-uint8_t set_position_x, set_position_y;
-
-
-uint8_t u4_RxBuffer[10];
-uint8_t u5_Rxbuffer[10];//[0] for pid status:1 for speed, 2 for ordinate, 3 for rotate, [5][6] for set
-uint8_t Rx_u4_len = 10;
-uint8_t Rx_u5_len = 6;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -90,13 +82,6 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
 void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction);
-void MOTOR_SpeedRead();
-void MOTOR_Speedcontrol(int16_t motor_number, Direction_Typedef direction, float target_speed);
-
-void PID_Init(PID_Typedef *pid, float p_set, float i_set, float d_set);
-void PID_Clear(PID_Typedef *pid);
-int PID_Calculate(PID_Typedef *pid, float set_value, float now_value );
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
 /* USER CODE END PFP */
@@ -154,11 +139,7 @@ int main(void)
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_ALL);
-
-  HAL_UART_Receive_DMA(&huart4, u4_RxBuffer, Rx_u4_len);
-  HAL_UART_Receive_IT(&huart5, u5_Rxbuffer, Rx_u5_len);
-
-  PID_Init(pid_speed, 20, 0.5, 0);
+  PID_Init(pid_speed, 10, 3, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -168,9 +149,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, SET);
-      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, RESET);    
-      // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1000);
+
+    // u5_printf("HELLO WORLD!\n");
   }
   /* USER CODE END 3 */
 }
@@ -217,8 +197,8 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 /**
   * @brief the direction of motor
-  * @param motor_number: the number of motor 1~4
-  * @param direction: forward or back
+  * @param motor_number:the number of motor 1~4
+  * @param direction:forward or back
   */
 void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction)
 {       
@@ -291,7 +271,7 @@ void MOTOR_SpeedRead()
     motor[2].velocity = (float)count2 / 4 / 0.001 / 260 * Wheel_L;
     motor[3].velocity = (float)count3 / 4 / 0.001 / 260 * Wheel_L;
     motor[4].velocity = (float)count4 / 4 / 0.001 / 260 * Wheel_L;
-    u5_printf("%d\n", motor[1].velocity);
+    u5_printf("%d\n", count1);
 }
 
 /**
@@ -353,13 +333,23 @@ void MOTOR_Speedcontrol(int16_t motor_number, Direction_Typedef direction, float
   MOTOR_SpeedRead();
   switch (motor_number)
   {
-    case 1: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;   
-    case 2: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;  
-    case 3: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;  
-    case 4: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;
+    case 1:
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PID_Calculate(pid_speed[1], target_speed, motor[1].velocity));
+    break;
+    
+    case 2:
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PID_Calculate(pid_speed[2], target_speed, motor[1].velocity));
+    break;  
+    
+    case 3:
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PID_Calculate(pid_speed[3], target_speed, motor[1].velocity));
+    break;  
+    
+    case 4:
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PID_Calculate(pid_speed[4], target_speed, motor[1].velocity));
+    break;
   }
 }
-
 
 
 
@@ -371,28 +361,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM1)
   {
-    MOTOR_Direction(1, forward);
+    MOTOR_Speedcontrol(1, forward, 25);
   }
 }
 
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart)
-{
-  if(huart->Instance == UART5)
-  {
-    // PID_Typedef *a;
-    // switch ((int)u5_Rxbuffer[0])
-    // {
-    //   case 1: a = pid_speed; set_speed = u5_Rxbuffer[4];  break;
-    //   case 2: a = pid_ordinate;  break;
-    //   case 3: a = pid_rotate; break;
-    // }
-    // u5_printf("Kp: Ki: Kd: ");
-    // HAL_UART_Transmit(&huart5, (uint8_t*)u5_Rxbuffer, Rx_u5_len, HAL_MAX_DELAY);
-    // PID_Init(a, u5_Rxbuffer[1], u5_Rxbuffer[2], u5_Rxbuffer[3]);
-    // HAL_UART_Receive_IT(&huart5, (uint8_t*)u5_Rxbuffer, Rx_u5_len);
-  }
-}
 
 /* USER CODE END 4 */
 

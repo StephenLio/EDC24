@@ -43,15 +43,26 @@ typedef struct
   int velocity;
 }Motor_Typedef;
 
+typedef struct
+{
+	float Kp, Ki, Kd;
+	float P, I, D;
+	float Error_Last;	
+}PID_Typedef;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define PID_MAX 1000//改成自己设定的PWM波的单波�?长输出时�?
+#define PID_MIN -1000//改成自己设定的PWM波的单波�?长输出时间的相反�?
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define Wheel_L 10
+#define Wheel_L 20
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -59,8 +70,19 @@ typedef struct
 /* USER CODE BEGIN PV */
 Motor_Typedef motor[5];
 
-uint8_t RxBuffer[10];
+PID_Typedef *pid_speed;
+PID_Typedef *pid_rotate;
+PID_Typedef *pid_ordinate;
 
+uint8_t set_speed;
+uint8_t set_angle;
+uint8_t set_position_x, set_position_y;
+
+
+uint8_t u4_RxBuffer[10];
+uint8_t u5_Rxbuffer[10];//[0] for pid status:1 for speed, 2 for ordinate, 3 for rotate, [5][6] for set
+uint8_t Rx_u4_len = 10;
+uint8_t Rx_u5_len = 6;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,7 +90,15 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
 void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction);
+void MOTOR_SpeedRead();
+void MOTOR_Speedcontrol(int16_t motor_number, Direction_Typedef direction, float target_speed);
+
+void PID_Init(PID_Typedef *pid, float p_set, float i_set, float d_set);
+void PID_Clear(PID_Typedef *pid);
+int PID_Calculate(PID_Typedef *pid, float set_value, float now_value );
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -125,6 +155,10 @@ int main(void)
   HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_ALL);
 
+  HAL_UART_Receive_DMA(&huart4, u4_RxBuffer, Rx_u4_len);
+  HAL_UART_Receive_IT(&huart5, u5_Rxbuffer, Rx_u5_len);
+
+  PID_Init(pid_speed, 20, 0.5, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -134,9 +168,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    MOTOR_Direction(1, forward);
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 300);
-    // u5_printf("HELLO WORLD!\n");
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, SET);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, RESET);    
+      // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1000);
   }
   /* USER CODE END 3 */
 }
@@ -182,9 +216,9 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 /**
-  * @brief 电机正反�??
-  * @param motor_number:电机序号，范�?? 1~4
-  * @param direction:正反转，forward为正转，back为反�??
+  * @brief the direction of motor
+  * @param motor_number: the number of motor 1~4
+  * @param direction: forward or back
   */
 void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction)
 {       
@@ -238,15 +272,11 @@ void MOTOR_Direction(int16_t motor_number, Direction_Typedef direction)
   }
 }
 
-
 /**
-  * @brief TIM中断回调函数
-  * @param htim：�?�择是哪个定时器
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+ * @brief read the speed of motors, stored in motor[].velocity
+*/
+void MOTOR_SpeedRead()
 {
-  if (htim->Instance == TIM1)
-  {
     __IO uint32_t count1 = __HAL_TIM_GET_COUNTER(&htim2);//电机1的编码器计数
     __IO uint32_t count2 = __HAL_TIM_GET_COUNTER(&htim3);//电机2的编码器计数
     __IO uint32_t count3 = __HAL_TIM_GET_COUNTER(&htim4);//电机3的编码器计数
@@ -257,16 +287,112 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     __HAL_TIM_SetCounter(&htim4, 0);
     __HAL_TIM_SetCounter(&htim5, 0);
 
-    int speed1 = (float)count1 / 4 / 0.001 / 260 * Wheel_L;
-    int speed2 = (float)count2 / 4 / 0.001 / 260 * Wheel_L;
-    int speed3 = (float)count3 / 4 / 0.001 / 260 * Wheel_L;
-    int speed4 = (float)count4 / 4 / 0.001 / 260 * Wheel_L;
+    motor[1].velocity = (float)count1 / 4 / 0.001 / 260 * Wheel_L;
+    motor[2].velocity = (float)count2 / 4 / 0.001 / 260 * Wheel_L;
+    motor[3].velocity = (float)count3 / 4 / 0.001 / 260 * Wheel_L;
+    motor[4].velocity = (float)count4 / 4 / 0.001 / 260 * Wheel_L;
+    u5_printf("%d\n", motor[1].velocity);
+}
 
-    u5_printf("count1: %d ; speed1: %d\r\n", count1, speed1);
+/**
+  * @brief Initialize PID
+  * @param pid: the pid controller
+  * @param p_set: Kp of a specific pid controller
+  * @param i_set: Ki of a specific pid controller
+  * @param d_set: Kd of a specific pid controller
+*/
+void PID_Init(PID_Typedef *pid, float p_set, float i_set, float d_set)
+{
+  pid->Kp = p_set;
+  pid->Ki = i_set;
+  pid->Kd = d_set;
+}
+
+/**
+ * @brief clear the former status of a pid controller
+ * @param pid: the pid controller
+*/
+void PID_Clear(PID_Typedef *pid)
+{
+  pid->P = 0;
+  pid->I = 0;
+  pid->D = 0;
+  pid->Error_Last = 0;
+}
+
+
+/**
+ * @brief Calculate PID
+ * @param pid: which pid controller
+ * @param set_value: the target value
+ * @param now_value: the current value
+ * @return the pwm to be applied
+*/
+int PID_Calculate(PID_Typedef *pid, float set_value, float now_value )
+{
+	pid->P = set_value - now_value;
+	pid->I += pid->P;
+	pid->D = pid->P - pid->Error_Last;
+	pid->Error_Last = pid->P;
+	pid->I=pid->I>1000?1000:(pid->I<(-1000)?(-1000):pid->I);
+	if( set_value == 0 )			pid->I = 0;
+	return(pid->Kp*pid->P  +  pid->Ki*pid->I  +  pid->Kd*pid->D);
+}
+
+
+
+/**
+ * @brief control the speed of motors
+ * @param motor_number: number of the motor, range 1~4
+ * @param direction: forward or back
+ * @param target_speed: target speed to reach
+*/
+void MOTOR_Speedcontrol(int16_t motor_number, Direction_Typedef direction, float target_speed)
+{
+  MOTOR_Direction(motor_number, direction);
+  MOTOR_SpeedRead();
+  switch (motor_number)
+  {
+    case 1: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;   
+    case 2: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;  
+    case 3: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;  
+    case 4: __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, PID_Calculate(pid_speed, target_speed, motor[1].velocity)); break;
   }
 }
 
 
+
+
+/**
+  * @brief TIM interrupt function
+  * @param htim：choose the timer that cause the interrupt
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM1)
+  {
+    MOTOR_Direction(1, forward);
+  }
+}
+
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart)
+{
+  if(huart->Instance == UART5)
+  {
+    // PID_Typedef *a;
+    // switch ((int)u5_Rxbuffer[0])
+    // {
+    //   case 1: a = pid_speed; set_speed = u5_Rxbuffer[4];  break;
+    //   case 2: a = pid_ordinate;  break;
+    //   case 3: a = pid_rotate; break;
+    // }
+    // u5_printf("Kp: Ki: Kd: ");
+    // HAL_UART_Transmit(&huart5, (uint8_t*)u5_Rxbuffer, Rx_u5_len, HAL_MAX_DELAY);
+    // PID_Init(a, u5_Rxbuffer[1], u5_Rxbuffer[2], u5_Rxbuffer[3]);
+    // HAL_UART_Receive_IT(&huart5, (uint8_t*)u5_Rxbuffer, Rx_u5_len);
+  }
+}
 
 /* USER CODE END 4 */
 

@@ -224,6 +224,18 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
+void u4_printf(char* fmt, ...) {
+  uint16_t len;
+  va_list ap;
+  va_start(ap, fmt);
+  uint8_t buf[200];
+  vsprintf((char*)buf, fmt, ap);
+  va_end(ap);
+  len = strlen((char*)buf);
+  HAL_UART_Transmit(&huart4, buf, len, HAL_MAX_DELAY);//若使用了其他UART通道，将对应通道（参�??1）修改即可�?�该函数在（6.补充）中会进行说明�??
+}
+
+
 void u5_printf(char* fmt, ...) {
   uint16_t len;
   va_list ap;
@@ -232,6 +244,6 @@ void u5_printf(char* fmt, ...) {
   vsprintf((char*)buf, fmt, ap);
   va_end(ap);
   len = strlen((char*)buf);
-  HAL_UART_Transmit(&huart5, buf, len, HAL_MAX_DELAY);//若使用了其他UART通道，将对应通道（参�?1）修改即可�?�该函数在（6.补充）中会进行说明�??
+  HAL_UART_Transmit(&huart5, buf, len, HAL_MAX_DELAY);//若使用了其他UART通道，将对应通道（参�??1）修改即可�?�该函数在（6.补充）中会进行说明�??
 }
 /* USER CODE END 1 */

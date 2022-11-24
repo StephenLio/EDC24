@@ -361,7 +361,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM1)
   {
-    MOTOR_Speedcontrol(1, forward, 25);
+    u5_printf("Hello World\n");
   }
 }
 
